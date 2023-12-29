@@ -39,15 +39,21 @@ export class EDAAppStack extends cdk.Stack {
     });
 
     // Integration infrastructure
-
-    const imageProcessQueue = new sqs.Queue(this, "img-created-queue", {
-      receiveMessageWaitTime: cdk.Duration.seconds(10),
+    const rejectionQueue = new sqs.Queue(this, "bad-image-q", {
+      retentionPeriod: cdk.Duration.minutes(30),
     });
 
+    const imageProcessQueue = new sqs.Queue(this, "img-created-queue", {
+      deadLetterQueue: {
+        queue: rejectionQueue,
+        maxReceiveCount: 1,
+      },
+      receiveMessageWaitTime: cdk.Duration.seconds(10),
+    });
+  
     const mailerQ = new sqs.Queue(this, "mailer-queue", {
       receiveMessageWaitTime: cdk.Duration.seconds(10),
     });
-
     const newImageTopic = new sns.Topic(this, "NewImageTopic", {
       displayName: "New Image topic",
     }); 
@@ -65,6 +71,7 @@ export class EDAAppStack extends cdk.Stack {
       environment: {
         TABLE_NAME: imagesTable.tableName,
         REGION: 'eu-north-1',
+        QUEUE_URL: imageProcessQueue.queueUrl,
       },
     }
   );
@@ -78,7 +85,27 @@ export class EDAAppStack extends cdk.Stack {
     entry: `${__dirname}/../lambdas/mailer.ts`,
   });
 
+  const failedImagesFn = new lambdanode.NodejsFunction(this, "FailedImagesFn", {
+    architecture: lambda.Architecture.ARM_64,
+    runtime: lambda.Runtime.NODEJS_16_X,
+    entry: `${__dirname}/../lambdas/rejectMailer.ts`,
+    timeout: cdk.Duration.seconds(10),
+    memorySize: 128,
+  });
+
+
   mailerFn.addToRolePolicy(
+    new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        "ses:SendEmail",
+        "ses:SendRawEmail",
+        "ses:SendTemplatedEmail",
+      ],
+      resources: ["*"],
+    })
+  );
+  failedImagesFn.addToRolePolicy(
     new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -103,18 +130,25 @@ newImageTopic.addSubscription(new subs.SqsSubscription(mailerQ));
   const newImageEventSource = new events.SqsEventSource(imageProcessQueue, {
     batchSize: 5,
     maxBatchingWindow: cdk.Duration.seconds(10),
+    maxConcurrency: 2,
   });
 
   const newImageMailEventSource = new events.SqsEventSource(mailerQ, {
     batchSize: 5,
     maxBatchingWindow: cdk.Duration.seconds(10),
   }); 
-
+  failedImagesFn.addEventSource(
+    new events.SqsEventSource(rejectionQueue, {
+      batchSize: 5,
+      maxBatchingWindow: cdk.Duration.seconds(5),
+      maxConcurrency: 2,
+    })
+  );
   processImageFn.addEventSource(newImageEventSource);
   mailerFn.addEventSource(newImageMailEventSource);
 
   // Permissions
-
+  imageProcessQueue.grantSendMessages(processImageFn);
   imagesBucket.grantRead(processImageFn);
 
   }
