@@ -8,11 +8,13 @@ import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as sns from "aws-cdk-lib/aws-sns";
 import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 
 import { Construct } from "constructs";
 // import * as sqs from 'aws-cdk-lib/aws-sqs';
 
 export class EDAAppStack extends cdk.Stack {
+
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
@@ -20,6 +22,14 @@ export class EDAAppStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
       publicReadAccess: false,
+    });
+
+    //create table for images
+  	const imagesTable = new dynamodb.Table(this, 'ImagesTable', {
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      partitionKey: { name: 'ImageName', type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.DESTROY, 
+      tableName: 'Images', 
     });
 
     // Output
@@ -52,8 +62,14 @@ export class EDAAppStack extends cdk.Stack {
       entry: `${__dirname}/../lambdas/processImage.ts`,
       timeout: cdk.Duration.seconds(15),
       memorySize: 128,
+      environment: {
+        TABLE_NAME: imagesTable.tableName,
+        REGION: 'eu-north-1',
+      },
     }
   );
+  //permissions
+  imagesTable.grantReadWriteData(processImageFn);
 
   const mailerFn = new lambdanode.NodejsFunction(this, "mailer-function", {
     runtime: lambda.Runtime.NODEJS_16_X,

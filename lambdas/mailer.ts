@@ -19,7 +19,7 @@ type ContactDetails = {
   message: string;
 };
 
-const client = new SESClient({ region: "eu-west-1" });
+const client = new SESClient({ region: "eu-north-1" });
 
 export const handler: SQSHandler = async (event: any) => {
   console.log("Event ", event);
