@@ -15,11 +15,18 @@ import {
   PublishCommand,
   SNSClient,
 } from "@aws-sdk/client-sns";
+// const AWS = require("aws-sdk");
+import {
+  SQSClient,
+} from "@aws-sdk/client-sqs";
+import { SendMessageCommand, SendMessageCommandInput } from "@aws-sdk/client-sqs";
+
 
 // Create instances of AWS clients
 const s3 = new S3Client();
 const dynamoDBClient = new DynamoDBClient();
 const snsClient = new SNSClient();
+const client = new SQSClient({ region: "eu-north-1" });
 
 export const handler: SQSHandler = async (event) => {
   console.log("Event ", event);
@@ -49,17 +56,7 @@ export const handler: SQSHandler = async (event) => {
         // Check that the image type is supported
         if (imageType !== "jpeg" && imageType !== "png") {
           console.log(`Unsupported image type: ${imageType}`);
-          
-          /* Send message to DLQ
-          await snsClient.send(
-            new PublishCommand({
-              TopicArn: 'arn:aws:sns:eu-north-1:806671454251:DLQ-Topic',
-              Message: JSON.stringify({
-                error: 'Invalid file type',
-                object_key: srcKey,
-              }),
-            }) as any
-          );*/
+
           // Write item to DynamoDB
           await dynamoDBClient.send(new PutItemCommand({
             TableName: 'Images',
@@ -71,8 +68,14 @@ export const handler: SQSHandler = async (event) => {
           
           throw new Error(`Unsupported image type: ${imageType}`);
         }
-
         // Process image upload 
+        const sendCommandInput = {
+          QueueUrl: process.env.MAILER_QUEUE_URL,
+          MessageBody: JSON.stringify(recordBody),
+        };
+        const sendResult = await client.send(
+          new SendMessageCommand(sendCommandInput)
+        );
       }
     }
   }

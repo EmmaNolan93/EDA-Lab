@@ -72,6 +72,7 @@ export class EDAAppStack extends cdk.Stack {
         TABLE_NAME: imagesTable.tableName,
         REGION: 'eu-north-1',
         QUEUE_URL: imageProcessQueue.queueUrl,
+        MAILER_QUEUE_URL: mailerQ.queueUrl,
       },
     }
   );
@@ -125,8 +126,11 @@ export class EDAAppStack extends cdk.Stack {
 newImageTopic.addSubscription(
   new subs.SqsSubscription(imageProcessQueue)
 );
-newImageTopic.addSubscription(new subs.SqsSubscription(mailerQ));
-
+//newImageTopic.addSubscription(new subs.SqsSubscription(mailerQ));
+  /* Only add mailer subscription if the image type is correct
+  if (processImageFn) {
+    newImageTopic.addSubscription(new subs.SqsSubscription(mailerQ));
+  }*/
   const newImageEventSource = new events.SqsEventSource(imageProcessQueue, {
     batchSize: 5,
     maxBatchingWindow: cdk.Duration.seconds(10),
@@ -149,6 +153,7 @@ newImageTopic.addSubscription(new subs.SqsSubscription(mailerQ));
 
   // Permissions
   imageProcessQueue.grantSendMessages(processImageFn);
+  mailerQ.grantSendMessages(processImageFn);
   imagesBucket.grantRead(processImageFn);
 
   }
