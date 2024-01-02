@@ -56,15 +56,6 @@ export const handler: SQSHandler = async (event) => {
         // Check that the image type is supported
         if (imageType !== "jpeg" && imageType !== "png") {
           console.log(`Unsupported image type: ${imageType}`);
-
-          // Write item to DynamoDB
-          await dynamoDBClient.send(new PutItemCommand({
-            TableName: 'Images',
-            Item: {
-              'ImageName': { S: srcKey },
-              'ErrorType': { S: 'Invalid file type' },
-            },
-          }));
           
           throw new Error(`Unsupported image type: ${imageType}`);
         }
@@ -73,6 +64,14 @@ export const handler: SQSHandler = async (event) => {
           QueueUrl: process.env.MAILER_QUEUE_URL,
           MessageBody: JSON.stringify(recordBody),
         };
+
+         // Write item to DynamoDB
+         await dynamoDBClient.send(new PutItemCommand({
+          TableName: 'Images',
+          Item: {
+            'ImageName': { S: srcKey },
+          },
+        }));
         const sendResult = await client.send(
           new SendMessageCommand(sendCommandInput)
         );
