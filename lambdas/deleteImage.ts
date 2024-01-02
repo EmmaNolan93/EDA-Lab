@@ -14,14 +14,6 @@ export const handler: S3Handler = async (event: S3Event) => {
       // Check if key is present and not null
       if (key) {
         try {
-          // Check if the item exists in DynamoDB
-          /*await dynamoDBClient.send(new GetItemCommand({
-            TableName: 'Images',
-            Key: {
-              'ImageName': { S: key },
-            },
-          }));*/
-
           // If the item exists, delete it
           await dynamoDBClient.send(new DeleteItemCommand({
             TableName: 'Images',
