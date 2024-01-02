@@ -185,6 +185,10 @@ export class EDAAppStack extends cdk.Stack {
     mailerQ.grantSendMessages(processImageFn);
     imagesBucket.grantRead(processImageFn);
     imagesBucket.grantDelete(deleteImageFn);
+     //permissions
+     imagesTable.grantReadWriteData(processImageFn);
+     imagesTable.grantWriteData(deleteImageFn);
+     imagesTable.grantReadWriteData(updateImageFn);
   }
 }
 

@@ -2,9 +2,7 @@
 
 __Name: Emma Nolan 20093200
 
-__YouTube Demo link__ - [The URL of your demonstration of the app.]
-
-[ Note: The video must include an audio.]
+__YouTube Demo link__ - https://youtu.be/acrJ7oMlSJI
 
 ### Phase 1.
 
