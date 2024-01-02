@@ -58,7 +58,19 @@ export class EDAAppStack extends cdk.Stack {
       displayName: "New Image topic",
     });
     // Lambda functions
-
+    const updateImageFn = new lambdanode.NodejsFunction(
+      this,
+      "UpdateImageFn",
+      {
+        runtime: lambda.Runtime.NODEJS_16_X,
+        entry: `${__dirname}/../lambdas/updateImage.ts`,
+        timeout: cdk.Duration.seconds(10),
+        memorySize: 128,
+        environment: {
+          TABLE_NAME: imagesTable.tableName,
+        },
+      }
+    );
     const processImageFn = new lambdanode.NodejsFunction(
       this,
       "ProcessImageFn",
@@ -92,6 +104,7 @@ export class EDAAppStack extends cdk.Stack {
     //permissions
     imagesTable.grantReadWriteData(processImageFn);
     imagesTable.grantWriteData(deleteImageFn);
+    imagesTable.grantReadWriteData(updateImageFn);
 
     const mailerFn = new lambdanode.NodejsFunction(this, "mailer-function", {
       runtime: lambda.Runtime.NODEJS_16_X,
@@ -136,6 +149,8 @@ export class EDAAppStack extends cdk.Stack {
       s3.EventType.OBJECT_CREATED,
       new s3n.SnsDestination(newImageTopic)  // Changed
     );
+    // Subscribe the Lambda function to the SNS topic
+    //newImageTopic.addSubscription(new subs.LambdaSubscription(updateImageFn));
 
     newImageTopic.addSubscription(
       new subs.SqsSubscription(imageProcessQueue)
@@ -162,6 +177,8 @@ export class EDAAppStack extends cdk.Stack {
         maxConcurrency: 2,
       })
     );
+    const updateTableEventSource = new events.SnsEventSource(newImageTopic);
+
     // Create an S3 event source for object deletion
     const deleteImageEventSource = new events.S3EventSource(imagesBucket, {
       events: [s3.EventType.OBJECT_REMOVED],
@@ -170,11 +187,12 @@ export class EDAAppStack extends cdk.Stack {
     deleteImageFn.addEventSource(deleteImageEventSource);
     processImageFn.addEventSource(newImageEventSource);
     mailerFn.addEventSource(newImageMailEventSource);
-
+    updateImageFn.addEventSource(updateTableEventSource);
     // Permissions
     imageProcessQueue.grantSendMessages(processImageFn);
     mailerQ.grantSendMessages(processImageFn);
     imagesBucket.grantRead(processImageFn);
+    imagesBucket.grantDelete(deleteImageFn);
 
   }
 }
