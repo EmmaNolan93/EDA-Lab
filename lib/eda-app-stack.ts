@@ -56,9 +56,7 @@ export class EDAAppStack extends cdk.Stack {
     const newImageTopic = new sns.Topic(this, "NewImageTopic", {
       displayName: "New Image topic",
     });
-    const deleteImageTopic = new sns.Topic(this, "DeleteImageTopic", {
-      displayName: "Delete Image topic",
-    });
+
     // Lambda functions
     const updateImageFn = new lambdanode.NodejsFunction(
       this,
@@ -145,34 +143,9 @@ export class EDAAppStack extends cdk.Stack {
       s3.EventType.OBJECT_CREATED,
       new s3n.SnsDestination(newImageTopic),
     );
-    // Event triggers
-    imagesBucket.addEventNotification(
-      s3.EventType.OBJECT_REMOVED,
-      new s3n.SnsDestination(deleteImageTopic),
-    );
-
+    newImageTopic.addSubscription(new subs.SqsSubscription(mailerQ));
     newImageTopic.addSubscription(
-      new subs.LambdaSubscription(processImageFn, {
-        filterPolicyWithMessageBody: {
-          Records: sns.FilterOrPolicy.policy({
-            eventName: sns.FilterOrPolicy.filter(sns.SubscriptionFilter.stringFilter({
-              matchPrefixes: ['ObjectCreated']
-            }))
-          })
-        }
-      })
-    );
-
-    deleteImageTopic.addSubscription(
-      new subs.LambdaSubscription(deleteImageFn, {
-        filterPolicyWithMessageBody: {
-          Records: sns.FilterOrPolicy.policy({
-            eventName: sns.FilterOrPolicy.filter(sns.SubscriptionFilter.stringFilter({
-              matchPrefixes: ['ObjectRemoved']
-            }))
-          })
-        }
-      })
+      new subs.SqsSubscription(imageProcessQueue)
     );
 
     // Set up event sources
